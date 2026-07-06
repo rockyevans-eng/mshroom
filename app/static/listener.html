@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MSHroom — Listener</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>MSHroom</h1>
+  <nav>
+    <a href="/">Viewer</a>
+    <a href="/sender">Sender</a>
+    <a href="/listener" class="active">Listener</a>
+  </nav>
+</header>
+<main>
+  <section id="listener-controls">
+    <div class="form-row">
+      <span id="listener-status" class="status-badge">…</span>
+      <span class="hint">Port: <strong id="listener-port">—</strong></span>
+      <button id="start-btn" type="button">Start</button>
+      <button id="stop-btn" type="button">Stop</button>
+      <span class="hint">Refreshes every 3s. Click any HL7 row to open it in the Viewer.</span>
+    </div>
+    <div id="listener-error" class="hidden"></div>
+  </section>
+
+  <section id="counters"></section>
+
+  <section id="events-panel">
+    <table id="events-table">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Peer</th>
+          <th>Class</th>
+          <th>MSH-9</th>
+          <th>MSH-10</th>
+          <th>ACK</th>
+        </tr>
+      </thead>
+      <tbody id="events-body"></tbody>
+    </table>
+    <p id="events-empty" class="hint hidden">No connections captured yet.</p>
+  </section>
+</main>
+<script src="/static/tree.js"></script>
+<script src="/static/listener.js"></script>
+</body>
+</html>

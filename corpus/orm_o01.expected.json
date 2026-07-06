@@ -1,0 +1,37 @@
+{
+  "message_type": "ORM^O01",
+  "control_id": "CTRL0005",
+  "segment_ids_in_order": [
+    "MSH",
+    "PID",
+    "PV1",
+    "ORC",
+    "OBR"
+  ],
+  "checks": [
+    {
+      "ref": "MSH-9.2",
+      "expected_raw": "O01"
+    },
+    {
+      "ref": "ORC-1",
+      "expected_raw": "NW"
+    },
+    {
+      "ref": "ORC-2",
+      "expected_raw": "PLC100988"
+    },
+    {
+      "ref": "ORC-4",
+      "expected_raw": "GRP5001"
+    },
+    {
+      "ref": "OBR-4.1",
+      "expected_raw": "BMP"
+    },
+    {
+      "ref": "OBR-16.2",
+      "expected_raw": "WELBY"
+    }
+  ]
+}

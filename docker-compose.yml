@@ -1,0 +1,26 @@
+# MSHroom -- deploy compose file.
+#
+# Ports: web UI 8550, MLLP listener 6671 (both host-mapped). If either is
+# already taken on the deploy host, change the HOST side of the mapping
+# below (and the HL7_LISTENER_PORT env var for 6671).
+#
+# capture.db: bind-mounted as a single file from ./data/capture.db on the
+# host to /app/capture.db in the container (the exact path app/main.py's
+# BASE_DIR / "capture.db" resolves to), so captures survive
+# `docker compose down` / container recreation. `./data/` must exist
+# before first `docker compose up` (an empty `data/.gitkeep` is checked
+# in for this) -- Docker will create an empty capture.db file there on
+# first start if one doesn't already exist, and CaptureLog initializes
+# its schema on first connection.
+services:
+  web:
+    build: .
+    container_name: mshroom
+    restart: unless-stopped
+    ports:
+      - "8550:8550"
+      - "6671:6671"
+    volumes:
+      - ./data/capture.db:/app/capture.db
+    environment:
+      - HL7_LISTENER_PORT=6671

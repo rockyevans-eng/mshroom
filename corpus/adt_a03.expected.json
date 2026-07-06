@@ -1,0 +1,57 @@
+{
+  "message_type": "ADT^A03",
+  "control_id": "CTRL0002",
+  "segment_ids_in_order": [
+    "MSH",
+    "EVN",
+    "PID",
+    "PV1",
+    "DG1"
+  ],
+  "checks": [
+    {
+      "ref": "MSH-9.1",
+      "expected_raw": "ADT"
+    },
+    {
+      "ref": "MSH-9.2",
+      "expected_raw": "A03"
+    },
+    {
+      "ref": "MSH-10",
+      "expected_raw": "CTRL0002"
+    },
+    {
+      "ref": "EVN-1",
+      "expected_raw": "A03"
+    },
+    {
+      "ref": "PID-5.1",
+      "expected_raw": "DOE"
+    },
+    {
+      "ref": "PV1-2",
+      "expected_raw": "I"
+    },
+    {
+      "ref": "PV1-36.1",
+      "expected_raw": "01"
+    },
+    {
+      "ref": "PV1-36.2",
+      "expected_raw": "Discharged to home"
+    },
+    {
+      "ref": "PV1-45",
+      "expected_raw": "20260702160000"
+    },
+    {
+      "ref": "DG1-3.1",
+      "expected_raw": "J18.9"
+    },
+    {
+      "ref": "DG1-3.2",
+      "expected_raw": "Pneumonia, unspecified organism"
+    }
+  ]
+}

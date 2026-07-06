@@ -1,0 +1,33 @@
+{
+  "message_type": "MDM^T02",
+  "control_id": "CTRL0006",
+  "segment_ids_in_order": [
+    "MSH",
+    "EVN",
+    "PID",
+    "PV1",
+    "TXA"
+  ],
+  "checks": [
+    {
+      "ref": "MSH-9.2",
+      "expected_raw": "T02"
+    },
+    {
+      "ref": "EVN-1",
+      "expected_raw": "T02"
+    },
+    {
+      "ref": "TXA-2.2",
+      "expected_raw": "Discharge Summary"
+    },
+    {
+      "ref": "TXA-12",
+      "expected_raw": "DOC100234-1"
+    },
+    {
+      "ref": "TXA-17",
+      "expected_raw": "AU"
+    }
+  ]
+}

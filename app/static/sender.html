@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MSHroom — Sender</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>MSHroom</h1>
+  <nav>
+    <a href="/">Viewer</a>
+    <a href="/sender" class="active">Sender</a>
+    <a href="/listener">Listener</a>
+  </nav>
+</header>
+<main>
+  <section id="sender-form">
+    <div class="form-row">
+      <label for="send-host">Host</label>
+      <input id="send-host" value="127.0.0.1">
+      <label for="send-port">Port</label>
+      <input id="send-port" type="number" min="1" max="65535" value="6661">
+      <label for="corpus-select">Load corpus:</label>
+      <select id="corpus-select"><option value="">— corpus —</option></select>
+    </div>
+    <textarea id="send-message" spellcheck="false"
+      placeholder="Paste an HL7 v2 message here, or load one from the corpus…"></textarea>
+    <div class="form-row">
+      <button id="send-btn" class="primary" type="button">Send (MLLP)</button>
+      <span class="hint">Frames the message as 0x0B … 0x1C 0x0D and waits for the ACK.</span>
+    </div>
+    <div id="send-status"></div>
+  </section>
+
+  <section id="ack-panel" class="hidden">
+    <h2>ACK response</h2>
+    <div id="ack-summary"></div>
+    <div id="ack-tree"></div>
+    <h2>Raw ACK</h2>
+    <pre id="ack-raw"></pre>
+  </section>
+</main>
+<script src="/static/tree.js"></script>
+<script src="/static/sender.js"></script>
+</body>
+</html>

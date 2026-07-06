@@ -1,0 +1,39 @@
+{
+  "message_type": "ADT^A08",
+  "control_id": "CTRL0003",
+  "segment_ids_in_order": [
+    "MSH",
+    "EVN",
+    "PID",
+    "PV1",
+    "PV2",
+    "AL1",
+    "AL1"
+  ],
+  "checks": [
+    {
+      "ref": "MSH-9.2",
+      "expected_raw": "A08"
+    },
+    {
+      "ref": "PID-11.1",
+      "expected_raw": "456 OAK AVE"
+    },
+    {
+      "ref": "PID-11.3",
+      "expected_raw": "SPRINGFIELD"
+    },
+    {
+      "ref": "PV2-3.2",
+      "expected_raw": "Follow-up admission"
+    },
+    {
+      "ref": "AL1-3.2",
+      "expected_raw": "Penicillin"
+    },
+    {
+      "ref": "AL1-5",
+      "expected_raw": "Anaphylaxis"
+    }
+  ]
+}

@@ -1,0 +1,93 @@
+{
+  "message_type": "ADT^A01",
+  "control_id": "CTRL0001",
+  "segment_ids_in_order": [
+    "MSH",
+    "EVN",
+    "PID",
+    "NK1",
+    "PV1"
+  ],
+  "checks": [
+    {
+      "ref": "MSH-9.1",
+      "expected_raw": "ADT"
+    },
+    {
+      "ref": "MSH-9.2",
+      "expected_raw": "A01"
+    },
+    {
+      "ref": "MSH-10",
+      "expected_raw": "CTRL0001"
+    },
+    {
+      "ref": "MSH-12",
+      "expected_raw": "2.5.1"
+    },
+    {
+      "ref": "EVN-1",
+      "expected_raw": "A01"
+    },
+    {
+      "ref": "PID-3.1",
+      "expected_raw": "MRN100234"
+    },
+    {
+      "ref": "PID-5.1",
+      "expected_raw": "DOE"
+    },
+    {
+      "ref": "PID-5.2",
+      "expected_raw": "JANE"
+    },
+    {
+      "ref": "PID-5.3",
+      "expected_raw": "MARIE"
+    },
+    {
+      "ref": "PID-7",
+      "expected_raw": "19850314"
+    },
+    {
+      "ref": "PID-8",
+      "expected_raw": "F"
+    },
+    {
+      "ref": "PID-11.3",
+      "expected_raw": "SPRINGFIELD"
+    },
+    {
+      "ref": "NK1-2.1",
+      "expected_raw": "DOE"
+    },
+    {
+      "ref": "NK1-3.1",
+      "expected_raw": "SPO"
+    },
+    {
+      "ref": "PV1-2",
+      "expected_raw": "I"
+    },
+    {
+      "ref": "PV1-3.1",
+      "expected_raw": "3EAST"
+    },
+    {
+      "ref": "PV1-7.2",
+      "expected_raw": "WELBY"
+    },
+    {
+      "ref": "PV1-18",
+      "expected_raw": "I"
+    },
+    {
+      "ref": "PV1-19",
+      "expected_raw": "VN100234100"
+    },
+    {
+      "ref": "PV1-20",
+      "expected_raw": "SELF"
+    }
+  ]
+}

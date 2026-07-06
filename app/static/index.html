@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MSHroom — Viewer</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>MSHroom</h1>
+  <nav>
+    <a href="/" class="active">Viewer</a>
+    <a href="/sender">Sender</a>
+    <a href="/listener">Listener</a>
+  </nav>
+</header>
+<main>
+  <section id="paste-area">
+    <textarea id="message-input" spellcheck="false"
+      placeholder="Paste an HL7 v2 message here (any line endings are fine)…"></textarea>
+    <div id="paste-actions">
+      <button id="parse-btn" class="primary" type="button">Parse</button>
+      <label for="corpus-select" class="hint">or load a sample:</label>
+      <select id="corpus-select"><option value="">— corpus —</option></select>
+      <span class="hint">Click a tree node to highlight it in the raw text; click or select
+        in the raw text to jump to its tree node. Hover a node for its copy-reference button.</span>
+    </div>
+  </section>
+
+  <div id="summary-bar"></div>
+
+  <section id="viewer-panes" class="hidden">
+    <div class="pane" id="tree-pane"></div>
+    <div class="pane"><pre id="raw-pane"></pre></div>
+  </section>
+</main>
+<script src="/static/tree.js"></script>
+<script src="/static/viewer.js"></script>
+</body>
+</html>

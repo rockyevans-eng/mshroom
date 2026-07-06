@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        python-version: ["3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install package (editable) + dev dependencies
+        run: pip install -e .[dev]
+
+      - name: Run test suite
+        # python -m (not bare pytest): puts the repo root on sys.path so
+        # cross-test imports like tests.test_mllp resolve, matching the
+        # documented local invocation.
+        run: python -m pytest -v
+
+  build-check:
+    # Proves the packaging fix: install a real (non-editable) wheel and
+    # confirm hl7kit's JSON dictionary and app's static assets actually
+    # made it into the installed package (see pyproject.toml
+    # [tool.setuptools.package-data]).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build wheel and install it (non-editable)
+        run: |
+          pip install build
+          python -m build --wheel
+          pip install dist/*.whl
+
+      - name: Smoke-check installed package data
+        run: |
+          python -c "
+          import hl7kit.dictionary as d
+          name = d.field_name('PID', 5)
+          assert name, f'PID-5 field name did not resolve: {name!r}'
+          print('hl7kit.dictionary PID-5 ->', name)
+
+          import app.main as m
+          assert m.STATIC_DIR.exists(), f'{m.STATIC_DIR} missing from installed package'
+          assert (m.STATIC_DIR / 'index.html').exists(), 'index.html missing from installed package'
+          print('app.main STATIC_DIR ->', m.STATIC_DIR, '(exists)')
+          "

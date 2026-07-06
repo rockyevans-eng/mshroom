@@ -1,0 +1,46 @@
+{
+  "message_type": "ORU^R01",
+  "control_id": "CTRL0004",
+  "segment_ids_in_order": [
+    "MSH",
+    "PID",
+    "PV1",
+    "ORC",
+    "OBR",
+    "OBX",
+    "OBX",
+    "OBX",
+    "OBX",
+    "NTE"
+  ],
+  "checks": [
+    {
+      "ref": "MSH-9.2",
+      "expected_raw": "R01"
+    },
+    {
+      "ref": "OBR-4.2",
+      "expected_raw": "Complete Blood Count"
+    },
+    {
+      "ref": "OBR-25",
+      "expected_raw": "F"
+    },
+    {
+      "ref": "OBX-3.1",
+      "expected_raw": "WBC"
+    },
+    {
+      "ref": "OBX-5",
+      "expected_raw": "7.2"
+    },
+    {
+      "ref": "OBX-8",
+      "expected_raw": "N"
+    },
+    {
+      "ref": "NTE-3",
+      "expected_raw": "Specimen slightly hemolyzed; potassium result flagged."
+    }
+  ]
+}
