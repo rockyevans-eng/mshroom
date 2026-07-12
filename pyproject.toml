@@ -15,10 +15,21 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "httpx>=0.27",
+    "ruff>=0.15",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+# Matches the longest lines already in the codebase -- the config adapts
+# to the code, not the other way around.
+line-length = 120
+
+[tool.ruff.lint]
+# Conservative on purpose: correctness (E, F), warnings (W), and import
+# ordering (I). Nothing that forces large mechanical rewrites.
+select = ["E", "F", "W", "I"]
 
 [build-system]
 requires = ["setuptools>=68"]

@@ -197,9 +197,7 @@ def _webview_skip_reason() -> str | None:
     """None if this environment can actually show a pywebview window."""
     if importlib.util.find_spec("webview") is None:
         return "pywebview is not installed"
-    if sys.platform.startswith("linux") and not (
-        os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
-    ):
+    if sys.platform.startswith("linux") and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
         return "no display available"
     if sys.platform == "win32" and not _webview2_runtime_present():
         return "WebView2 runtime is not installed"

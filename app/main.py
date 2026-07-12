@@ -32,7 +32,8 @@ from typing import Any, AsyncIterator, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field as PydanticField
+from pydantic import BaseModel
+from pydantic import Field as PydanticField
 
 from app.capture import CaptureLog
 from hl7kit import dictionary

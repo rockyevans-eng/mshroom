@@ -20,7 +20,7 @@ Contents:
                     received ACKs.
 """
 
-from hl7kit.parser import parse_message, Message, Segment, Field, Repetition, Component, Subcomponent, EncodingChars
+from hl7kit.parser import Component, EncodingChars, Field, Message, Repetition, Segment, Subcomponent, parse_message
 
 __all__ = [
     "parse_message",

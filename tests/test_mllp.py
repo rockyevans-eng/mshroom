@@ -11,7 +11,7 @@ import threading
 from pathlib import Path
 
 from hl7kit.ack import build_ack, parse_ack
-from hl7kit.mllp import END_BLOCK, START_BLOCK, frame, send_message, unframe
+from hl7kit.mllp import START_BLOCK, frame, send_message, unframe
 from hl7kit.parser import parse_message
 
 CORPUS_DIR = Path(__file__).resolve().parents[1] / "corpus"

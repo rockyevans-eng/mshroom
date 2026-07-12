@@ -53,7 +53,7 @@ def test_parse_segment_only():
 
 
 def test_alias_dot_style_dots():
-    """"SEG.3.1" (dot style: dots throughout) must parse the same as the
+    """ "SEG.3.1" (dot style: dots throughout) must parse the same as the
     canonical hyphen form."""
     canonical = parse_reference("PID-3.1")
     alias = parse_reference("PID.3.1")
@@ -61,7 +61,7 @@ def test_alias_dot_style_dots():
 
 
 def test_alias_hyphens_throughout():
-    """"SEG-3-1" (hyphens throughout) must parse the same as the canonical
+    """ "SEG-3-1" (hyphens throughout) must parse the same as the canonical
     dotted form."""
     canonical = parse_reference("PID-3.1")
     alias = parse_reference("PID-3-1")
@@ -210,9 +210,7 @@ def test_parse_segment_occurrence_combined_with_field_repetition():
     """Both bracket positions at once: 2nd OBX segment, 3rd repetition of
     its field 5, component 1."""
     ref = parse_reference("OBX[2]-5[3].1")
-    assert ref == Reference(
-        segment="OBX", segment_occurrence=2, field=5, repetition=3, component=1
-    )
+    assert ref == Reference(segment="OBX", segment_occurrence=2, field=5, repetition=3, component=1)
 
 
 def test_parse_segment_occurrence_dot_alias():

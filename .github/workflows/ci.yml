@@ -7,6 +7,29 @@ on:
     branches: [main]
 
 jobs:
+  lint:
+    # Style is locked by ruff (config in pyproject.toml): `ruff check`
+    # for lint rules, `ruff format --check` so formatting drift fails CI
+    # instead of accumulating. One OS is enough -- ruff results don't
+    # vary by platform.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ruff
+        run: pip install "ruff>=0.15"
+
+      - name: ruff check
+        run: ruff check .
+
+      - name: ruff format --check
+        run: ruff format --check .
+
   test:
     strategy:
       fail-fast: false

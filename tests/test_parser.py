@@ -284,7 +284,7 @@ def test_decode_escapes_unrecognized_sequence_passed_through():
 
 
 def test_subcomponent_field_decoded_value_present():
-    text = 'MSH|^~\\&|A|B|C|D|20260101000000||ADT^A01|CTRL1|P|2.5.1\rNTE|1||line1\\.br\\line2\r'
+    text = "MSH|^~\\&|A|B|C|D|20260101000000||ADT^A01|CTRL1|P|2.5.1\rNTE|1||line1\\.br\\line2\r"
     message = parse_message(text)
     nte = message.segment("NTE")
     comment = nte.get_field(3)
@@ -337,7 +337,22 @@ def test_dictionary_lowercase_segment_id_is_normalized():
 
 def test_dictionary_known_segments_covers_build_plan_list():
     expected_segments = {
-        "MSH", "EVN", "PID", "PV1", "PV2", "NK1", "ORC", "OBR", "OBX",
-        "TXA", "MFI", "MFE", "SCH", "AL1", "DG1", "IN1", "NTE",
+        "MSH",
+        "EVN",
+        "PID",
+        "PV1",
+        "PV2",
+        "NK1",
+        "ORC",
+        "OBR",
+        "OBX",
+        "TXA",
+        "MFI",
+        "MFE",
+        "SCH",
+        "AL1",
+        "DG1",
+        "IN1",
+        "NTE",
     }
     assert expected_segments.issubset(set(dictionary.known_segments()))

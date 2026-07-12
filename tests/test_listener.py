@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 from app.capture import CaptureLog
 from app.main import app
 from hl7kit.ack import parse_ack
-from hl7kit.mllp import END_BLOCK, START_BLOCK, MllpListener, frame, unframe
+from hl7kit.mllp import START_BLOCK, MllpListener, frame, unframe
 
 CORPUS_DIR = Path(__file__).resolve().parents[1] / "corpus"
 PROBES_DIR = CORPUS_DIR / "probes"
@@ -205,9 +205,7 @@ def test_junk_bytes_classified(running_listener):
 def test_oversized_frame_classified_as_junk(capture_log):
     """A frame that never completes and blows past max_bytes -- use a tiny
     max_bytes so the test doesn't need to push a real megabyte."""
-    listener = MllpListener(
-        host="127.0.0.1", port=0, on_event=capture_log.record, idle_timeout=5.0, max_bytes=1000
-    )
+    listener = MllpListener(host="127.0.0.1", port=0, on_event=capture_log.record, idle_timeout=5.0, max_bytes=1000)
     listener.start()
     try:
         sock = _connect(listener)
@@ -379,9 +377,7 @@ def test_stop_unblocks_inflight_connection_promptly(capture_log):
     thread blocked in recv(). stop() must close that connection and reap
     the handler NOW -- not after the 30s idle timeout. (Service mode's
     shutdown depends on this.)"""
-    listener = MllpListener(
-        host="127.0.0.1", port=0, on_event=capture_log.record, idle_timeout=30.0
-    )
+    listener = MllpListener(host="127.0.0.1", port=0, on_event=capture_log.record, idle_timeout=30.0)
     listener.start()
     sock = _connect(listener)
     try:

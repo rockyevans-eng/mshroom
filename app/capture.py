@@ -121,9 +121,7 @@ class CaptureLog:
         counters. Classes never seen are simply absent (callers default
         to 0)."""
         with self._lock:
-            rows = self._conn.execute(
-                "SELECT event_class, COUNT(*) AS n FROM events GROUP BY event_class"
-            ).fetchall()
+            rows = self._conn.execute("SELECT event_class, COUNT(*) AS n FROM events GROUP BY event_class").fetchall()
             return {row["event_class"]: row["n"] for row in rows}
 
     def clear(self) -> None:
