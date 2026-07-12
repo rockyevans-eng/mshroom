@@ -18,26 +18,28 @@ message.
 
 ## What it does
 
-Three tools, one small FastAPI + vanilla-JS app:
+Three tools in one window, behind **View | Send | Receive** tabs (a small
+FastAPI + vanilla-JS app):
 
-- **Viewer** -- paste an HL7 v2 message (or load a bundled sample) and get
+- **View** -- paste an HL7 v2 message (or load a bundled sample) and get
   a tree on the left, raw text on the right. Click a tree node (say,
   `PID-5`) and its exact characters highlight in the raw text; click or
   select text in the raw pane and the tree jumps to (and flashes) the
   matching node. There is no message-type or profile picker anywhere --
   paste anything and it parses, figures out its own structure, and lets
   you drill into whatever segments and repetitions are actually there.
-- **Sender** -- an MLLP client. Point it at a host and port, load a sample
+- **Send** -- an MLLP client. Point it at a host and port, load a sample
   or paste your own message, send it, and see the returned ACK rendered
   as its own mini-tree. A refused connection or timeout comes back as a
   plain-English message, never a stack trace.
-- **Listener** -- an MLLP server. It starts automatically with the app,
-  listens on a configurable port, ACKs real HL7 traffic, and logs every
-  connection it sees. Critically, it never treats a connection as an HL7
-  message until it has actually verified that it is one: port scans, stray
-  HTTP requests, TLS handshakes, and plain junk are each classified and
-  logged (never parsed, never answered) instead of being blindly fed to
-  the parser. Click any logged HL7 row to open it straight in the Viewer.
+- **Receive** -- an MLLP server (the Listener). It starts automatically
+  with the app, listens on a configurable port, ACKs real HL7 traffic, and
+  logs every connection it sees. Critically, it never treats a connection
+  as an HL7 message until it has actually verified that it is one: port
+  scans, stray HTTP requests, TLS handshakes, and plain junk are each
+  classified and logged (never parsed, never answered) instead of being
+  blindly fed to the parser. Click any logged HL7 row to open it straight
+  in the View tab.
 
 ## Quickstart
 
@@ -46,25 +48,38 @@ Requires Python 3.12+.
 ```powershell
 python -m venv .venv
 .venv\Scripts\python.exe -m pip install -e .[dev]
-.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8550
 ```
 
-This is a network tool, and it binds accordingly:
+**Desktop mode** (the default) -- one native window, tabs across the top,
+no browser tab required:
+
+```powershell
+.venv\Scripts\python.exe -m mshroom
+```
+
+Closing the window shuts everything down -- the web server and the MLLP
+listener both stop with it.
+
+**Headless mode** -- the same app as a plain web server, for running on a
+test/integration server (or as a service, once the installer ships):
+
+```powershell
+.venv\Scripts\python.exe -m mshroom --headless          # 0.0.0.0:8550
+.venv\Scripts\python.exe -m mshroom --headless --port 9000
+```
+
+This is a network tool, and headless mode binds accordingly:
 
 - The web UI is at **http://\<this-machine's-IP\>:8550/** from any machine
   on your network (or `http://127.0.0.1:8550/` from the same box).
-  `/sender` and `/listener` are the other two tools; `/docs` is the built-in
-  API documentation.
-- The **Listener accepts MLLP from external clients** -- point your
-  interface engine, or another copy of MSHroom, at
-  `<this-machine's-IP>:6671`. The port is configurable without a code
-  change: set `HL7_LISTENER_PORT` before starting.
+  `/docs` is the built-in API documentation.
+- In **both modes**, the **Receive tab's listener accepts MLLP from
+  external clients** -- point your interface engine, or another copy of
+  MSHroom, at `<this-machine's-IP>:6671`. The port is configurable
+  without a code change: set `HL7_LISTENER_PORT` before starting.
 - If nothing can reach you, it's almost always the OS firewall: allow
   inbound TCP on 8550 and 6671 (the planned installer will offer to do
   this for you).
-
-This is today's run mode. A native desktop shell (one window, tabs across
-the top, no browser tab required) is planned -- see Roadmap below.
 
 ## Running the tests
 
@@ -94,7 +109,10 @@ Listener survive garbage; the same fake-data-only rule applies.
 
 ## Roadmap
 
-- **V1 (current):** the three tabs above -- Viewer, Sender, Listener.
+- **V1 (current):** single-window desktop shell with the three tabs above
+  -- View, Send, Receive -- plus the headless server mode. Still to come
+  in V1: log-file ingestion, send-all/step-through send modes, and the
+  packaged Windows installer.
 - **V1.1:** message editing and edit-and-resend from the Viewer/Sender.
 - **V2:** multiple named inbound/outbound interfaces, plus a data-mapping
   workspace for documenting field-to-database mappings across systems.
@@ -103,7 +121,7 @@ Listener survive garbage; the same fake-data-only rule applies.
 
 ## Screenshots
 
-_(placeholder -- screenshots of the Viewer, Sender, and Listener tabs go
+_(placeholder -- screenshots of the View, Send, and Receive tabs go
 here)_
 
 ## Contributing
