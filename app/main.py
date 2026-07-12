@@ -10,7 +10,9 @@ runs) or the ``/api/listener/start`` and ``/api/listener/stop`` routes
 only fires when something actually enters it, e.g. ``uvicorn`` or
 ``with TestClient(app) as client:``).
 
-Run locally (from the repo root)::
+Run it via the launcher (``python -m mshroom`` for the desktop window,
+``python -m mshroom --headless`` for server use -- see
+:mod:`mshroom.__main__`), or directly with uvicorn (from the repo root)::
 
     .venv\\Scripts\\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8550
 
