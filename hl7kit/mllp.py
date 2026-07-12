@@ -281,6 +281,13 @@ class MllpListener:
         self._accept_thread: Optional[threading.Thread] = None
         self._running = False
         self._lock = threading.Lock()
+        # Live per-connection state, so stop() can shut down *everything*:
+        # closing a connection's socket makes a handler blocked in recv()
+        # fail immediately instead of sitting out the idle timeout -- a
+        # stop() would otherwise leave handler threads lingering for up to
+        # `idle_timeout` seconds (service mode needs a prompt, clean stop).
+        self._conns: set[socket.socket] = set()
+        self._handlers: set[threading.Thread] = set()
 
     @property
     def is_running(self) -> bool:
@@ -322,9 +329,15 @@ class MllpListener:
             self._accept_thread.start()
 
     def stop(self, join_timeout: float = 5.0) -> None:
-        """Stop accepting new connections and close the listening socket.
-        In-flight connection handlers finish on their own (each is a
-        short-lived daemon thread); idempotent like :meth:`start`.
+        """Stop the listener completely: close the listening socket, stop
+        the accept loop, close any in-flight connections, and join their
+        handler threads. Idempotent like :meth:`start`.
+
+        Closing an in-flight connection's socket is what makes this
+        prompt: a handler blocked in ``recv()`` gets an immediate
+        ``OSError`` (handled as "peer went away") instead of waiting out
+        the idle timeout, so no handler threads outlive this call by more
+        than a moment.
         """
         with self._lock:
             if not self._running:
@@ -341,6 +354,15 @@ class MllpListener:
         if thread is not None:
             thread.join(timeout=join_timeout)
             self._accept_thread = None
+        # Unblock and reap in-flight connection handlers. Snapshot under
+        # the lock; handlers mutate these sets as they finish.
+        with self._lock:
+            conns = list(self._conns)
+            handlers = list(self._handlers)
+        for conn in conns:
+            self._close(conn)
+        for handler in handlers:
+            handler.join(timeout=join_timeout)
 
     # -- accept loop ----------------------------------------------------
 
@@ -358,7 +380,17 @@ class MllpListener:
                 # Belt and suspenders: nothing accept() does should land
                 # here, but the accept loop must never die.
                 continue
-            threading.Thread(target=self._safe_handle, args=(conn, addr), daemon=True).start()
+            handler = threading.Thread(target=self._safe_handle, args=(conn, addr), daemon=True)
+            with self._lock:
+                if not self._running:
+                    # stop() won the race while accept() was returning:
+                    # it has already swept _conns, so registering now
+                    # would leak this connection past the stop.
+                    self._close(conn)
+                    break
+                self._conns.add(conn)
+                self._handlers.add(handler)
+            handler.start()
 
     def _safe_handle(self, conn: socket.socket, addr: tuple[str, int]) -> None:
         """Outermost guard around one connection: whatever goes wrong in
@@ -371,6 +403,9 @@ class MllpListener:
             pass
         finally:
             self._close(conn)
+            with self._lock:
+                self._conns.discard(conn)
+                self._handlers.discard(threading.current_thread())
 
     # -- per-connection classification ----------------------------------
 

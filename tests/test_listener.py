@@ -370,6 +370,37 @@ def test_capture_log_get_event_unknown_id_returns_none(capture_log):
 
 
 # ---------------------------------------------------------------------------
+# Lifecycle: stop() must quiesce everything promptly
+# ---------------------------------------------------------------------------
+
+
+def test_stop_unblocks_inflight_connection_promptly(capture_log):
+    """A client that opened a frame but never finished it leaves a handler
+    thread blocked in recv(). stop() must close that connection and reap
+    the handler NOW -- not after the 30s idle timeout. (Service mode's
+    shutdown depends on this.)"""
+    listener = MllpListener(
+        host="127.0.0.1", port=0, on_event=capture_log.record, idle_timeout=30.0
+    )
+    listener.start()
+    sock = _connect(listener)
+    try:
+        sock.sendall(START_BLOCK + b"MSH|^~\\&|partial")  # no END_BLOCK: handler keeps reading
+        # Give the handler thread a moment to pick the connection up.
+        time.sleep(0.2)
+        started = time.monotonic()
+        listener.stop()
+        elapsed = time.monotonic() - started
+        assert elapsed < 10.0, f"stop() took {elapsed:.1f}s -- handler sat out its read timeout"
+        # No handler threads may survive a stop().
+        assert _wait_until(lambda: not listener._handlers), "handler threads left after stop()"
+        assert not listener._conns, "open connections left after stop()"
+    finally:
+        sock.close()
+        listener.stop()
+
+
+# ---------------------------------------------------------------------------
 # API routes: /api/listener/*
 # ---------------------------------------------------------------------------
 
