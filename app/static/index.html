@@ -3,39 +3,111 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MSHroom — Viewer</title>
+<title>MSHroom</title>
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <header>
   <h1>MSHroom</h1>
-  <nav>
-    <a href="/" class="active">Viewer</a>
-    <a href="/sender">Sender</a>
-    <a href="/listener">Listener</a>
+  <!-- Tab bar. The links only change the URL hash (#view/#send/#receive);
+       tabs.js listens for hashchange and swaps the panels below. -->
+  <nav id="tab-bar">
+    <a href="#view" id="tab-link-view" class="active">View</a>
+    <a href="#send" id="tab-link-send">Send</a>
+    <a href="#receive" id="tab-link-receive">Receive</a>
   </nav>
 </header>
 <main>
-  <section id="paste-area">
+
+<!-- ================= View tab ================= -->
+<section id="tab-view" class="tab-panel">
+  <div id="paste-area">
     <textarea id="message-input" spellcheck="false"
       placeholder="Paste an HL7 v2 message here (any line endings are fine)…"></textarea>
     <div id="paste-actions">
       <button id="parse-btn" class="primary" type="button">Parse</button>
-      <label for="corpus-select" class="hint">or load a sample:</label>
-      <select id="corpus-select"><option value="">— corpus —</option></select>
+      <label for="view-corpus-select" class="hint">or load a sample:</label>
+      <select id="view-corpus-select"><option value="">— corpus —</option></select>
       <span class="hint">Click a tree node to highlight it in the raw text; click or select
         in the raw text to jump to its tree node. Hover a node for its copy-reference button.</span>
     </div>
-  </section>
+  </div>
 
   <div id="summary-bar"></div>
 
-  <section id="viewer-panes" class="hidden">
+  <div id="viewer-panes" class="hidden">
     <div class="pane" id="tree-pane"></div>
     <div class="pane"><pre id="raw-pane"></pre></div>
-  </section>
+  </div>
+</section>
+
+<!-- ================= Send tab ================= -->
+<section id="tab-send" class="tab-panel hidden">
+  <div id="sender-form">
+    <div class="form-row">
+      <label for="send-host">Host</label>
+      <input id="send-host" value="127.0.0.1">
+      <label for="send-port">Port</label>
+      <input id="send-port" type="number" min="1" max="65535" value="6661">
+      <label for="send-corpus-select">Load corpus:</label>
+      <select id="send-corpus-select"><option value="">— corpus —</option></select>
+    </div>
+    <textarea id="send-message" spellcheck="false"
+      placeholder="Paste an HL7 v2 message here, or load one from the corpus…"></textarea>
+    <div class="form-row">
+      <button id="send-btn" class="primary" type="button">Send (MLLP)</button>
+      <span class="hint">Frames the message as 0x0B … 0x1C 0x0D and waits for the ACK.</span>
+    </div>
+    <div id="send-status"></div>
+  </div>
+
+  <div id="ack-panel" class="hidden">
+    <h2>ACK response</h2>
+    <div id="ack-summary"></div>
+    <div id="ack-tree"></div>
+    <h2>Raw ACK</h2>
+    <pre id="ack-raw"></pre>
+  </div>
+</section>
+
+<!-- ================= Receive tab ================= -->
+<section id="tab-receive" class="tab-panel hidden">
+  <div id="listener-controls">
+    <div class="form-row">
+      <span id="listener-status" class="status-badge">…</span>
+      <span class="hint">Port: <strong id="listener-port">—</strong></span>
+      <button id="start-btn" type="button">Start</button>
+      <button id="stop-btn" type="button">Stop</button>
+      <span class="hint">Refreshes every 3s. Click any HL7 row to open it in the View tab.</span>
+    </div>
+    <div id="listener-error" class="hidden"></div>
+  </div>
+
+  <div id="counters"></div>
+
+  <div id="events-panel">
+    <table id="events-table">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Peer</th>
+          <th>Class</th>
+          <th>MSH-9</th>
+          <th>MSH-10</th>
+          <th>ACK</th>
+        </tr>
+      </thead>
+      <tbody id="events-body"></tbody>
+    </table>
+    <p id="events-empty" class="hint hidden">No connections captured yet.</p>
+  </div>
+</section>
+
 </main>
 <script src="/static/tree.js"></script>
+<script src="/static/tabs.js"></script>
 <script src="/static/viewer.js"></script>
+<script src="/static/sender.js"></script>
+<script src="/static/listener.js"></script>
 </body>
 </html>

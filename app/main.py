@@ -1,8 +1,9 @@
 """MSHroom web app: FastAPI routes + static frontend.
 
-The **Viewer** (parse endpoint feeding the tree/raw two-way-highlighting
-UI), the **Sender** (corpus list/load + MLLP send endpoint), and the
-**Listener** (MLLP server + capture log): it runs in-process on a
+One page, three tabs (**View | Send | Receive**), served at ``/``:
+the View tab (parse endpoint feeding the tree/raw two-way-highlighting
+UI), the Send tab (corpus list/load + MLLP send endpoint), and the
+Receive tab's **Listener** (MLLP server + capture log): it runs in-process on a
 background thread, started/stopped via the app's lifespan (real server
 runs) or the ``/api/listener/start`` and ``/api/listener/stop`` routes
 (manual control, and what the test suite uses -- the app's own lifespan
@@ -27,7 +28,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator, Optional
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field as PydanticField
 
@@ -442,18 +443,24 @@ def api_listener_event_detail(event_id: int) -> dict[str, Any]:
 
 
 @app.get("/", include_in_schema=False)
-def page_viewer() -> FileResponse:
+def page_app() -> FileResponse:
+    """The whole UI: one page with the View | Send | Receive tabs."""
     return FileResponse(STATIC_DIR / "index.html")
 
 
+# The Send and Receive tools used to live at their own URLs. Keep those
+# URLs working (bookmarks, older docs) by redirecting each one to the
+# matching tab of the single-page UI -- the hash picks the tab (tabs.js).
+
+
 @app.get("/sender", include_in_schema=False)
-def page_sender() -> FileResponse:
-    return FileResponse(STATIC_DIR / "sender.html")
+def page_sender() -> RedirectResponse:
+    return RedirectResponse(url="/#send")
 
 
 @app.get("/listener", include_in_schema=False)
-def page_listener() -> FileResponse:
-    return FileResponse(STATIC_DIR / "listener.html")
+def page_listener() -> RedirectResponse:
+    return RedirectResponse(url="/#receive")
 
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

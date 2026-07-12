@@ -1,7 +1,9 @@
-/* listener.js -- the Listener page: start/stop, probe counters, capture log.
+/* listener.js -- the Receive tab: start/stop, probe counters, capture log.
  *
- * Polling only (no websockets) -- fine for a lab tool. Clicking an HL7 row
- * hands its text to the Viewer via sessionStorage and navigates there.
+ * Polling only (no websockets) -- fine for a lab tool. Polling continues
+ * while other tabs are visible, so the counters are always current when
+ * the user switches back. Clicking an HL7 row loads its text into the
+ * View tab (MshViewer.loadText) and switches to it (MshTabs.show).
  */
 "use strict";
 
@@ -77,7 +79,7 @@
       tr.appendChild(cell(ev.ack_code || ""));
       if (ev.has_message) {
         tr.className = "clickable-row";
-        tr.title = "Open in Viewer";
+        tr.title = "Open in View tab";
         tr.addEventListener("click", function () { openInViewer(ev.id); });
       }
       eventsBody.appendChild(tr);
@@ -96,8 +98,8 @@
       .then(function (data) {
         var text = data.event && data.event.full_message;
         if (!text) { return; }
-        sessionStorage.setItem("hl7wb_preload_text", text);
-        window.location.href = "/";
+        window.MshViewer.loadText(text);
+        window.MshTabs.show("view");
       })
       .catch(function () { /* nothing to open; leave the page as-is */ });
   }

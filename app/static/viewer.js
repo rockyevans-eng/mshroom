@@ -1,10 +1,10 @@
-/* viewer.js -- the Viewer page: paste -> tree + raw, two-way highlighting. */
+/* viewer.js -- the View tab: paste -> tree + raw, two-way highlighting. */
 "use strict";
 
 (function () {
   var input = document.getElementById("message-input");
   var parseBtn = document.getElementById("parse-btn");
-  var corpusSelect = document.getElementById("corpus-select");
+  var corpusSelect = document.getElementById("view-corpus-select");
   var panes = document.getElementById("viewer-panes");
   var treePane = document.getElementById("tree-pane");
   var rawPane = document.getElementById("raw-pane");
@@ -13,17 +13,16 @@
   /* State for the currently parsed message. */
   var state = null; /* { originalText, tree, map, byRef, selectedRow } */
 
-  /* ---------------- Listener handoff ----------------
-   * The Listener page's "open in Viewer" link stashes a captured
-   * message's text here and redirects; if present, load and parse it
-   * immediately, then clear it so a plain reload of "/" doesn't repeat it. */
-  (function loadListenerHandoff() {
-    var preload = sessionStorage.getItem("hl7wb_preload_text");
-    if (!preload) { return; }
-    sessionStorage.removeItem("hl7wb_preload_text");
-    input.value = preload;
-    doParse();
-  })();
+  /* ---------------- programmatic load ----------------
+   * Other tabs load a message into the View tab through this hook -- the
+   * Receive tab's capture log calls MshViewer.loadText(text) and then
+   * MshTabs.show("view") when an HL7 row is clicked. */
+  window.MshViewer = {
+    loadText: function (text) {
+      input.value = text;
+      doParse();
+    }
+  };
 
   /* ---------------- corpus dropdown ---------------- */
 

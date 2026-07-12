@@ -211,16 +211,46 @@ def test_send_invalid_port_is_422():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("path", ["/", "/sender"])
+@pytest.mark.parametrize("path", ["/", "/sender", "/listener"])
 def test_pages_serve_html(path):
+    # /sender and /listener are redirects into the tabbed page; the
+    # client follows them, so every path lands on the same HTML.
     resp = client.get(path)
     assert resp.status_code == 200
     assert "text/html" in resp.headers["content-type"]
     assert "MSHroom" in resp.text
 
 
+def test_index_is_single_page_with_three_tabs():
+    """All three tools live on one page behind View | Send | Receive tabs."""
+    text = client.get("/").text
+    for panel_id in ("tab-view", "tab-send", "tab-receive"):
+        assert f'id="{panel_id}"' in text
+    for label in (">View<", ">Send<", ">Receive<"):
+        assert label in text
+    # Each tool's script module is loaded on the one page.
+    for script in ("tabs.js", "viewer.js", "sender.js", "listener.js"):
+        assert script in text
+
+
+@pytest.mark.parametrize("path,target", [("/sender", "/#send"), ("/listener", "/#receive")])
+def test_legacy_page_urls_redirect_to_tabs(path, target):
+    """Old multi-page URLs keep working as redirects to the matching tab."""
+    resp = client.get(path, follow_redirects=False)
+    assert resp.status_code in (302, 307)
+    assert resp.headers["location"] == target
+
+
 @pytest.mark.parametrize(
-    "asset", ["/static/style.css", "/static/tree.js", "/static/viewer.js", "/static/sender.js"]
+    "asset",
+    [
+        "/static/style.css",
+        "/static/tree.js",
+        "/static/tabs.js",
+        "/static/viewer.js",
+        "/static/sender.js",
+        "/static/listener.js",
+    ],
 )
 def test_static_assets_serve(asset):
     assert client.get(asset).status_code == 200

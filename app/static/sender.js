@@ -1,10 +1,10 @@
-/* sender.js -- the Sender page: corpus load, MLLP send, ACK mini-tree. */
+/* sender.js -- the Send tab: corpus load, MLLP send, ACK mini-tree. */
 "use strict";
 
 (function () {
   var hostInput = document.getElementById("send-host");
   var portInput = document.getElementById("send-port");
-  var corpusSelect = document.getElementById("corpus-select");
+  var corpusSelect = document.getElementById("send-corpus-select");
   var messageInput = document.getElementById("send-message");
   var sendBtn = document.getElementById("send-btn");
   var statusEl = document.getElementById("send-status");

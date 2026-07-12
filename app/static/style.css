@@ -1,4 +1,4 @@
-/* HL7 Workbench -- shared styles. Plain CSS, no framework. */
+/* MSHroom -- shared styles. Plain CSS, no framework. */
 
 :root {
   --bg: #f5f6f8;
@@ -34,13 +34,24 @@ header {
   border-bottom: 1px solid var(--border);
 }
 header h1 { font-size: 1.05rem; margin: 0; }
+
+/* ---------------- Tab bar ----------------
+ * The three links in #tab-bar switch the .tab-panel sections below
+ * (see tabs.js); the active tab gets an accent underline bar. */
 header nav a {
-  margin-right: 1rem;
+  display: inline-block;
+  margin-right: 0.25rem;
+  padding: 0.35rem 0.9rem;
   color: var(--accent);
   text-decoration: none;
   font-weight: 600;
+  border-bottom: 3px solid transparent;
 }
-header nav a.active { text-decoration: underline; }
+header nav a.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+header nav a:hover { background: var(--accent-soft); }
 
 main { padding: 1rem; }
 
