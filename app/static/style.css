@@ -219,6 +219,9 @@ ul.hl7-tree ul.children { padding-left: 1.25rem; }
 #send-port { width: 6rem; }
 #send-message { height: 12rem; margin-bottom: 0.6rem; }
 
+.form-row label.checkbox-label { font-weight: normal; cursor: pointer; }
+#send-conn-note { min-width: 10rem; }
+
 #send-status { margin: 0.75rem 0; font-weight: 600; }
 #send-status.ok { color: var(--ok); }
 #send-status.err { color: var(--err); }

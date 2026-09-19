@@ -13,7 +13,13 @@ This module provides:
   :class:`MllpResult`. Connection problems (refused, timeout, unreachable)
   come back as a *result with a friendly error string*, never as a raised
   exception -- the target listener may simply not exist yet, and the
-  UI must show a clean message rather than a stack trace.
+  UI must show a clean message rather than a stack trace. This is the
+  "new connection per message" mode.
+* :class:`MllpConnection` -- the same client behavior over one *persistent*
+  socket (the "Keep connection open" mode, like the setting of that name on
+  an interface engine's TCP sender): reuse across sends, pipelined-byte
+  keeping, stale-connection detection and one transparent reconnect.
+  :func:`send_message` is implemented on top of it.
 * :func:`extract_frames` -- pure helper the server uses to pull every
   complete frame out of a receive buffer (see "persistent connections"
   below).
@@ -146,11 +152,332 @@ class MllpResult:
     ``ok`` is True and ``response`` holds the decoded response text (the
     ACK); on failure ``ok`` is False and ``error`` holds a short,
     human-readable description safe to show directly in the UI.
+
+    ``reused`` is True only when the message went out on a connection that
+    was *already open* from an earlier send (see :class:`MllpConnection`).
+    A brand-new connection -- including one opened by the automatic
+    reconnect after the peer closed the old one -- reports ``False``.
     """
 
     ok: bool
     response: str = ""
     error: str = ""
+    reused: bool = False
+
+
+def _describe_network_error(exc: OSError, host: str, port: int, timeout: float) -> str:
+    """Turn a socket exception into the friendly one-line message shown in the UI.
+
+    Shared by :func:`send_message` and :class:`MllpConnection` so both report
+    the same problem in the same words. The order of the ``isinstance``
+    checks matters: ``ConnectionRefusedError``, ``socket.timeout`` and
+    ``socket.gaierror`` are all subclasses of ``OSError``, so the generic
+    ``OSError`` catch-all must come last.
+    """
+    if isinstance(exc, ConnectionRefusedError):
+        return (
+            f"Connection refused by {host}:{port} -- nothing is listening there. "
+            "Is the receiving interface deployed and started?"
+        )
+    if isinstance(exc, socket.timeout):
+        return (
+            f"Timed out after {timeout:g}s talking to {host}:{port}. The host may be "
+            "unreachable, or the listener accepted the message but never responded."
+        )
+    if isinstance(exc, socket.gaierror):
+        return f"Could not resolve host {host!r}."
+    # Catch-all for the remaining network errors (host unreachable, network
+    # down, connection reset, ...) -- still a friendly one-liner, never a traceback.
+    return f"Network error talking to {host}:{port}: {exc.strerror or exc}"
+
+
+def _drop_leading_junk(buffer: bytes) -> bytes:
+    """Discard any bytes in front of the first MLLP start byte (``0x0B``).
+
+    The client is deliberately more forgiving than the server (see
+    :func:`extract_frames`): a receiver may emit stray CR/LF or banner bytes
+    before its ACK and we still want to read the ACK. If the buffer holds no
+    start byte at all, everything in it is junk and is discarded.
+    """
+    start = buffer.find(START_BLOCK)
+    return b"" if start == -1 else buffer[start:]
+
+
+def _split_first_frame(buffer: bytes) -> Optional[tuple[bytes, bytes]]:
+    """Split *buffer* into ``(first_payload, everything_after_that_frame)``.
+
+    Returns ``None`` if *buffer* holds no complete frame yet. Built on
+    :func:`extract_frames`: any further complete frames are re-framed and
+    kept, followed by the unfinished remainder, so nothing an engine
+    pipelined behind its ACK is lost. (Bare CR/LF filler between frames is
+    dropped -- it carries no meaning.)
+    """
+    payloads, remainder = extract_frames(buffer)
+    if not payloads:
+        return None
+    rest = b"".join(frame(p) for p in payloads[1:]) + remainder
+    return payloads[0], rest
+
+
+#: Errors that mean "the peer's end of an idle connection is already gone"
+#: when they surface while *writing* a message onto a reused socket. Only
+#: these trigger the transparent reconnect after a write (see
+#: :meth:`MllpConnection.send`).
+_PEER_GONE_ERRORS = (BrokenPipeError, ConnectionResetError, ConnectionAbortedError)
+
+
+class MllpConnection:
+    """One persistent MLLP client connection (the "Keep connection open" mode).
+
+    Interface engines' TCP senders have a *Keep Connection Open* setting:
+    on, one socket carries many messages; off, every message gets a fresh
+    socket. A receiving engine may behave differently in the two modes, so
+    the Sender must be able to test both. :func:`send_message` is the
+    "off" mode; this class is the "on" mode.
+
+    Behavior contract (mirrors :func:`send_message`):
+
+    * :meth:`send` normalizes line endings, frames the message, writes it,
+      and reads exactly one framed response (the ACK).
+    * It **never raises** for network problems -- it returns an
+      :class:`MllpResult` with a friendly ``error``.
+    * The socket is opened lazily by the first :meth:`send` (or explicitly
+      via :meth:`connect`) and then reused by later sends.
+
+    Rules that only matter for a connection that lives across messages:
+
+    1. **Pipelined bytes are kept.** An engine may write more than one frame
+       before we read (for example an extra ACK). Only the first complete
+       frame is this send's response; every byte after it stays in an
+       internal buffer and is consulted first by the *next* send.
+    2. **Stale connections are detected, not blindly reused.** Before
+       writing onto a reused socket we check whether the peer has closed its
+       end while the connection sat idle (engines close idle connections).
+       If so we reconnect **once**, transparently, before sending; if the
+       reconnect fails the error says so plainly.
+    3. **No silent double-delivery.** The reconnect only happens when
+       nothing has been written yet (peer already gone before we write, or
+       the write itself failed with a reset/broken pipe). If the message
+       was written and the peer then dropped the connection without an ACK,
+       we cannot know whether it was processed, so that is reported as an
+       error rather than retried -- resending could deliver a duplicate.
+    4. **A failed send poisons the socket.** After any error or timeout
+       the socket is closed and the read buffer cleared: a late ACK for the
+       failed message would otherwise be mistaken for the response to the
+       next one.
+
+    Thread-safe: an internal lock serializes sends, so two threads sharing
+    one connection can't interleave frames or steal each other's ACKs.
+    """
+
+    def __init__(self, host: str, port: int) -> None:
+        self.host = host
+        self.port = port
+        self._sock: Optional[socket.socket] = None
+        # Bytes received beyond the ACK we returned (rule 1 above).
+        self._buffer = b""
+        # Re-entrant: send() calls peer_has_closed(), which takes the lock too.
+        self._lock = threading.RLock()
+
+    # -- lifecycle ------------------------------------------------------
+
+    @property
+    def is_open(self) -> bool:
+        """True if a socket is currently held (it may still have been closed
+        by the peer -- see :meth:`peer_has_closed`)."""
+        return self._sock is not None
+
+    def connect(self, timeout: float = 10.0) -> MllpResult:
+        """Open the socket now if it isn't open. Returns ``ok=True`` (with an
+        empty response) on success, or ``ok=False`` with a friendly error.
+        Never raises. Calling it on an open connection does nothing."""
+        with self._lock:
+            if self._sock is not None:
+                return MllpResult(ok=True, reused=True)
+            return self._open(timeout)
+
+    def close(self) -> None:
+        """Close the socket (if any) and forget buffered bytes. Idempotent.
+        A later :meth:`send` simply opens a new connection."""
+        with self._lock:
+            self._drop()
+
+    def __enter__(self) -> "MllpConnection":
+        return self
+
+    def __exit__(self, *_exc_info: object) -> None:
+        self.close()
+
+    def peer_has_closed(self) -> bool:
+        """True if the open socket's peer has closed (or reset) it.
+
+        Uses a non-blocking ``MSG_PEEK`` read, which looks at pending bytes
+        without consuming them: ``b""`` means the peer sent FIN (closed), a
+        reset error means it aborted, and "would block" means the connection
+        is quiet but alive. Returns ``False`` when no socket is held.
+        """
+        with self._lock:
+            sock = self._sock
+            if sock is None:
+                return False
+            try:
+                sock.settimeout(0.0)  # non-blocking for the peek only
+                return sock.recv(1, socket.MSG_PEEK) == b""
+            except BlockingIOError:
+                return False  # nothing to read right now: alive and idle
+            except OSError:
+                return True  # reset / aborted: as good as closed
+            finally:
+                try:
+                    sock.settimeout(None)
+                except OSError:
+                    pass  # socket already dead; send() will notice
+
+    # -- sending --------------------------------------------------------
+
+    def send(self, message_text: str, timeout: float = 10.0) -> MllpResult:
+        """Send one HL7 message and wait for one framed response (the ACK).
+
+        Same normalization, framing and error behavior as
+        :func:`send_message`; see the class docstring for the persistent-
+        connection rules (buffer keeping, stale detection, single
+        reconnect). *timeout* applies to opening a connection and to each
+        socket read/write.
+        """
+        from hl7kit.parser import normalize_line_endings  # local import: avoid a cycle
+
+        normalized, _ = normalize_line_endings(message_text)
+        data = frame(normalized.encode("utf-8"))
+
+        with self._lock:
+            # Rule 2: a reused socket whose peer already left is replaced
+            # *before* we write, so nothing is lost or duplicated.
+            replaced_stale = self._sock is not None and self.peer_has_closed()
+            if replaced_stale:
+                self._drop()
+            reused = self._sock is not None
+            if not reused:
+                failure = self._open_or_explain(timeout, replaced_stale)
+                if failure is not None:
+                    return failure
+
+            assert self._sock is not None
+            self._sock.settimeout(timeout)
+            try:
+                self._sock.sendall(data)
+            except _PEER_GONE_ERRORS as exc:
+                if not reused:
+                    return self._fail(exc, timeout)
+                # The peer's close raced our check (rule 3): the write hit a
+                # dead socket, so the message did not arrive. Reconnect once.
+                self._drop()
+                failure = self._open_or_explain(timeout, True)
+                if failure is not None:
+                    return failure
+                reused = False
+                try:
+                    self._sock.sendall(data)  # type: ignore[union-attr]
+                except OSError as exc2:
+                    return self._fail(exc2, timeout)
+            except OSError as exc:
+                return self._fail(exc, timeout, reused)
+            return self._read_ack(timeout, reused)
+
+    # -- internals (all called with self._lock held) ---------------------
+
+    def _drop(self) -> None:
+        """Close the socket and clear the buffer (rule 4)."""
+        sock, self._sock = self._sock, None
+        self._buffer = b""
+        if sock is not None:
+            try:
+                sock.close()
+            except OSError:
+                pass
+
+    def _open(self, timeout: float) -> MllpResult:
+        """Open a fresh socket; friendly error result on failure."""
+        try:
+            self._sock = socket.create_connection((self.host, self.port), timeout=timeout)
+        except OSError as exc:
+            return MllpResult(ok=False, error=_describe_network_error(exc, self.host, self.port, timeout))
+        self._buffer = b""
+        return MllpResult(ok=True)
+
+    def _open_or_explain(self, timeout: float, was_reconnect: bool) -> Optional[MllpResult]:
+        """Open a socket; return ``None`` on success or an error result.
+
+        When *was_reconnect* the failure message says the old connection had
+        been closed by the peer and the reconnect attempt failed too, so the
+        user learns both facts.
+        """
+        opened = self._open(timeout)
+        if opened.ok:
+            return None
+        if was_reconnect:
+            return MllpResult(
+                ok=False,
+                error=(
+                    f"The connection to {self.host}:{self.port} had been closed by the peer since "
+                    f"the last send, and reconnecting failed: {opened.error}"
+                ),
+            )
+        return opened
+
+    def _fail(self, exc: OSError, timeout: float, reused: bool = False) -> MllpResult:
+        """Build the friendly error for *exc* and poison the socket (rule 4)."""
+        self._drop()
+        return MllpResult(
+            ok=False,
+            error=_describe_network_error(exc, self.host, self.port, timeout),
+            reused=reused,
+        )
+
+    def _read_ack(self, timeout: float, reused: bool) -> MllpResult:
+        """Read until one complete frame is buffered; return it as the ACK.
+
+        Bytes already buffered from an earlier send are examined first
+        (rule 1). Everything after the first complete frame is put back
+        into the buffer for the next send.
+        """
+        assert self._sock is not None
+        host, port = self.host, self.port
+        total_read = 0  # per-call counter so endless junk can't loop forever
+        while True:
+            self._buffer = _drop_leading_junk(self._buffer)
+            split = _split_first_frame(self._buffer)
+            if split is not None:
+                payload, self._buffer = split
+                return MllpResult(ok=True, response=payload.decode("utf-8", errors="replace"), reused=reused)
+            if len(self._buffer) >= MAX_RESPONSE_BYTES or total_read >= MAX_RESPONSE_BYTES:
+                self._drop()
+                return MllpResult(
+                    ok=False,
+                    error=f"Response from {host}:{port} exceeded 1 MB without completing an MLLP frame.",
+                    reused=reused,
+                )
+            try:
+                chunk = self._sock.recv(65536)
+            except OSError as exc:
+                return self._fail(exc, timeout, reused)
+            if not chunk:
+                # Peer closed without completing a frame. What we say depends
+                # on whether any of a response had arrived.
+                partial = bool(self._buffer)
+                self._drop()
+                if partial:
+                    error = (
+                        f"{host}:{port} closed the connection before sending a "
+                        "complete MLLP response (partial data received)."
+                    )
+                else:
+                    error = (
+                        f"{host}:{port} accepted the message but closed the "
+                        "connection without sending a response (no ACK)."
+                    )
+                return MllpResult(ok=False, error=error, reused=reused)
+            total_read += len(chunk)
+            self._buffer += chunk
 
 
 def send_message(
@@ -161,6 +488,10 @@ def send_message(
 ) -> MllpResult:
     """Send one HL7 message over MLLP and wait for one framed response.
 
+    This is the "Keep connection open = off" mode: a new connection per
+    message, closed as soon as the ACK is read. It is a thin wrapper over
+    :class:`MllpConnection` so both modes share one implementation.
+
     Line endings in *message_text* are normalized to ``\\r`` before
     sending (HL7 requires bare-``\\r`` segment terminators on the wire;
     a message pasted into the UI may carry ``\\r\\n``/``\\n``).
@@ -170,67 +501,8 @@ def send_message(
     for connection refused, timeouts, DNS failures, and a response that
     never completes a frame.
     """
-    from hl7kit.parser import normalize_line_endings  # local import: avoid a cycle
-
-    normalized, _ = normalize_line_endings(message_text)
-    payload = normalized.encode("utf-8")
-
-    try:
-        with socket.create_connection((host, port), timeout=timeout) as sock:
-            sock.sendall(frame(payload))
-            buffer = b""
-            while len(buffer) < MAX_RESPONSE_BYTES:
-                chunk = sock.recv(65536)
-                if not chunk:
-                    # Peer closed without completing a frame.
-                    if buffer:
-                        return MllpResult(
-                            ok=False,
-                            error=(
-                                f"{host}:{port} closed the connection before sending a "
-                                "complete MLLP response (partial data received)."
-                            ),
-                        )
-                    return MllpResult(
-                        ok=False,
-                        error=(
-                            f"{host}:{port} accepted the message but closed the "
-                            "connection without sending a response (no ACK)."
-                        ),
-                    )
-                buffer += chunk
-                response_payload = unframe(buffer)
-                if response_payload is not None:
-                    return MllpResult(
-                        ok=True,
-                        response=response_payload.decode("utf-8", errors="replace"),
-                    )
-            return MllpResult(
-                ok=False,
-                error=f"Response from {host}:{port} exceeded 1 MB without completing an MLLP frame.",
-            )
-    except ConnectionRefusedError:
-        return MllpResult(
-            ok=False,
-            error=(
-                f"Connection refused by {host}:{port} -- nothing is listening there. "
-                "Is the receiving interface deployed and started?"
-            ),
-        )
-    except socket.timeout:
-        return MllpResult(
-            ok=False,
-            error=(
-                f"Timed out after {timeout:g}s talking to {host}:{port}. The host may be "
-                "unreachable, or the listener accepted the message but never responded."
-            ),
-        )
-    except socket.gaierror:
-        return MllpResult(ok=False, error=f"Could not resolve host {host!r}.")
-    except OSError as exc:
-        # Catch-all for the remaining network errors (host unreachable,
-        # network down, ...) -- still a friendly one-liner, never a traceback.
-        return MllpResult(ok=False, error=f"Network error talking to {host}:{port}: {exc.strerror or exc}")
+    with MllpConnection(host, port) as connection:
+        return connection.send(message_text, timeout=timeout)
 
 
 # ---------------------------------------------------------------------------

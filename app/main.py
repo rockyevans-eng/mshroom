@@ -36,6 +36,7 @@ from pydantic import BaseModel
 from pydantic import Field as PydanticField
 
 from app.capture import CaptureLog
+from app.send_pool import DEFAULT_IDLE_LIMIT, SendPool
 from hl7kit import dictionary
 from hl7kit.ack import parse_ack
 from hl7kit.mllp import DEFAULT_LISTENER_PORT, ListenerEvent, MllpListener, send_message
@@ -68,6 +69,10 @@ listener = MllpListener(
     port=int(os.environ.get("HL7_LISTENER_PORT", DEFAULT_LISTENER_PORT)),
     on_event=_on_listener_event,
 )
+#: Live connections for the Send tab's "Keep connection open" option (see
+#: :mod:`app.send_pool`). Idle connections are closed after
+#: ``HL7_SENDER_IDLE_LIMIT`` seconds (default 60).
+send_pool = SendPool(idle_limit=float(os.environ.get("HL7_SENDER_IDLE_LIMIT", DEFAULT_IDLE_LIMIT)))
 #: Set when the lifespan's auto-start (real server boot) fails to bind --
 #: surfaced in /api/listener/status rather than crashing the whole app.
 listener_start_error: Optional[str] = None
@@ -83,8 +88,13 @@ async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
         # Don't let a taken port take the whole Viewer/Sender app down with
         # it -- the Listener is one of three tools, not a prerequisite.
         listener_start_error = f"Could not bind listener port {listener.port}: {exc}"
-    yield
-    listener.stop()
+    try:
+        yield
+    finally:
+        listener.stop()
+        # Close every kept-open Sender connection and stop the idle reaper so
+        # no socket outlives the app.
+        send_pool.shutdown()
 
 
 app = FastAPI(title="MSHroom", version="0.1.0", lifespan=_lifespan)
@@ -108,6 +118,18 @@ class SendRequest(BaseModel):
     port: int = PydanticField(ge=1, le=65535)
     message: str
     timeout: float = PydanticField(default=10.0, gt=0, le=60)
+    #: True = reuse one connection per (host, port) across sends, like an
+    #: interface engine's "Keep Connection Open" setting. False (the default)
+    #: = a new connection per message, closed after the ACK.
+    keep_open: bool = False
+
+
+class SendCloseRequest(BaseModel):
+    """Body of POST /api/send/close. Give ``host`` and ``port`` together to
+    drop one destination's connection, or leave both out to drop them all."""
+
+    host: Optional[str] = None
+    port: Optional[int] = PydanticField(default=None, ge=1, le=65535)
 
 
 class ListenerStartRequest(BaseModel):
@@ -347,15 +369,26 @@ def api_send(req: SendRequest) -> dict[str, Any]:
     Always returns 200 with ``ok`` true/false -- a refused connection or
     timeout is a normal test situation (the receiving system may not be
     listening yet), not a server error.
+
+    ``keep_open`` false (default) sends on a brand-new connection that is
+    closed after the ACK. ``keep_open`` true sends through the connection
+    pool, reusing the socket from an earlier send to the same host:port when
+    it is still alive. Either way the response carries ``reused`` -- whether
+    the message travelled on an already-open connection.
     """
     if not req.message.strip():
         raise HTTPException(status_code=422, detail="Message text is empty.")
-    result = send_message(req.host.strip(), req.port, req.message, timeout=req.timeout)
+    host = req.host.strip()
+    if req.keep_open:
+        result = send_pool.send(host, req.port, req.message, timeout=req.timeout)
+    else:
+        result = send_message(host, req.port, req.message, timeout=req.timeout)
     if not result.ok:
-        return {"ok": False, "error": result.error}
+        return {"ok": False, "error": result.error, "reused": result.reused}
     ack = parse_ack(result.response)
     return {
         "ok": True,
+        "reused": result.reused,
         "ack": {
             "code": ack.code,
             "control_id": ack.control_id,
@@ -365,6 +398,23 @@ def api_send(req: SendRequest) -> dict[str, Any]:
             "tree": build_tree(ack.message),
         },
     }
+
+
+@app.post("/api/send/close")
+def api_send_close(req: Optional[SendCloseRequest] = None) -> dict[str, Any]:
+    """Drop kept-open Sender connections and report how many were closed.
+
+    With ``host`` + ``port``: just that destination. With an empty body (or
+    both fields omitted): every kept-open connection. Giving only one of
+    host/port is ambiguous, so it is rejected rather than guessed at.
+    """
+    host = req.host if req is not None else None
+    port = req.port if req is not None else None
+    if (host is None) != (port is None):
+        raise HTTPException(status_code=422, detail="Give both host and port, or neither (to close all).")
+    if host is not None and port is not None:
+        return {"closed": send_pool.close(host, port)}
+    return {"closed": send_pool.close_all()}
 
 
 # ---------------------------------------------------------------------------

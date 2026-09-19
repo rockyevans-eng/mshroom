@@ -31,7 +31,11 @@ FastAPI + vanilla-JS app):
 - **Send** -- an MLLP client. Point it at a host and port, load a sample
   or paste your own message, send it, and see the returned ACK rendered
   as its own mini-tree. A refused connection or timeout comes back as a
-  plain-English message, never a stack trace.
+  plain-English message, never a stack trace. Tick **Keep connection open**
+  (like an interface engine's TCP sender setting of the same name) to reuse
+  one connection for many sends instead of opening one per message; the tab
+  says whether each send reused it. Idle kept-open connections close after
+  60 seconds (`HL7_SENDER_IDLE_LIMIT` overrides) and all close on shutdown.
 - **Receive** -- an MLLP server (the Listener). It starts automatically
   with the app, listens on a configurable port, ACKs real HL7 traffic, and
   logs every connection it sees. Critically, it never treats a connection

@@ -58,6 +58,15 @@
       <button id="send-btn" class="primary" type="button">Send (MLLP)</button>
       <span class="hint">Frames the message as 0x0B … 0x1C 0x0D and waits for the ACK.</span>
     </div>
+    <!-- Mirrors an interface engine's TCP sender "Keep Connection Open": off = a new
+         connection per message; on = the server holds one socket per host:port. -->
+    <div class="form-row">
+      <label class="checkbox-label" for="send-keep-open">
+        <input id="send-keep-open" type="checkbox"> Keep connection open
+      </label>
+      <button id="close-conn-btn" class="hidden" type="button">Close connection</button>
+      <span id="send-conn-note" class="hint"></span>
+    </div>
     <div id="send-status"></div>
   </div>
 
