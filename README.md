@@ -38,7 +38,9 @@ FastAPI + vanilla-JS app):
   as an HL7 message until it has actually verified that it is one: port
   scans, stray HTTP requests, TLS handshakes, and plain junk are each
   classified and logged (never parsed, never answered) instead of being
-  blindly fed to the parser. Click any logged HL7 row to open it straight
+  blindly fed to the parser. Connections are persistent: a sender can keep
+  one connection open and send many messages over it, and each message is
+  ACKed and logged separately. Click any logged HL7 row to open it straight
   in the View tab.
 
 ## Quickstart

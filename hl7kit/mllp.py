@@ -14,14 +14,40 @@ This module provides:
   come back as a *result with a friendly error string*, never as a raised
   exception -- the target listener may simply not exist yet, and the
   UI must show a clean message rather than a stack trace.
+* :func:`extract_frames` -- pure helper the server uses to pull every
+  complete frame out of a receive buffer (see "persistent connections"
+  below).
 * :class:`MllpListener` -- the Listener's server: accepts connections,
   classifies each one (HL7 traffic vs. port scans, HTTP/TLS probes, and
   outright junk), ACKs real HL7 (AA if it parses cleanly, AE if the framed
   payload starts ``MSH`` but doesn't have enough structure to ACK
-  meaningfully), and reports every connection as a :class:`ListenerEvent`
+  meaningfully), and reports what it sees as :class:`ListenerEvent` objects
   via an ``on_event`` callback -- ``app/capture.py`` uses this to persist
   the capture log. Classification never raises: a bad connection is just
   another kind of hostile input, logged and closed, never a crash.
+
+Persistent connections
+----------------------
+Real interface engines open one MLLP connection and keep it open, sending
+many messages over it (each one waiting for its ACK, or several sent
+back-to-back). So the Listener does **not** close a connection after the
+first message. The rules are:
+
+1. The *first* bytes on a connection decide what it is. Anything that does
+   not start with the MLLP start byte ``0x0B`` (TLS handshake, HTTP
+   request, junk, or nothing at all) is classified and closed right away,
+   exactly as before. Non-HL7 traffic is never parsed as a message.
+2. A connection that opens with ``0x0B`` is treated as an MLLP session:
+   every complete frame is answered and recorded as its own event (one
+   :class:`ListenerEvent` per frame), and any incomplete trailing bytes are
+   kept as the start of the next frame.
+3. A session ends quietly (no event) when the peer closes cleanly or goes
+   idle *between* messages -- that is simply how a persistent connection
+   normally ends. It ends with an event only when something was wrong:
+   partial frame + idle = ``TIMEOUT``; partial frame + close = ``JUNK``;
+   an over-long unfinished frame = ``JUNK``; stray non-MLLP bytes where a
+   new frame should start = ``JUNK``; a framed payload that is not HL7 =
+   ``NON_HL7_PAYLOAD``.
 """
 
 from __future__ import annotations
@@ -61,6 +87,55 @@ def unframe(data: bytes) -> Optional[bytes]:
     if end == -1:
         return None
     return data[start + 1 : end]
+
+
+#: Bytes (CR, LF) some senders emit between frames (for example ``0x1C 0x0D 0x0A``,
+#: or a blank line after each message). They carry no meaning, so the server
+#: skips them instead of treating them as junk.
+_FILLER_BYTES = (0x0D, 0x0A)  # carriage return, line feed
+
+
+def extract_frames(buffer: bytes) -> tuple[list[bytes], bytes]:
+    """Pull every complete MLLP frame out of *buffer*.
+
+    Returns ``(payloads, remainder)``:
+
+    * ``payloads`` -- the bytes inside each complete frame, in order, with
+      the ``0x0B`` start byte and ``0x1C 0x0D`` end bytes removed.
+    * ``remainder`` -- whatever is left after the last complete frame. It is
+      one of three things: empty (the buffer ended exactly on a frame
+      boundary); the *start of an incomplete frame* (begins with ``0x0B``
+      -- keep it and append the next network read to it); or *junk* (begins
+      with any other byte -- a new frame should have started there but
+      didn't, so the caller decides what to do; the server closes).
+
+    Bare CR / LF bytes between frames are skipped silently. This is
+    a pure function: no sockets, no state, safe to call repeatedly on a
+    growing buffer.
+
+    Unlike :func:`unframe` (which the client uses and which tolerates junk
+    *before* a frame), this refuses to skip arbitrary bytes: on a
+    long-lived connection, silently skipping unknown bytes could hide a
+    peer that is not speaking MLLP at all.
+    """
+    payloads: list[bytes] = []
+    pos = 0
+    while True:
+        # Skip filler between frames (see _FILLER_BYTES).
+        while pos < len(buffer) and buffer[pos] in _FILLER_BYTES:
+            pos += 1
+        if pos >= len(buffer) or buffer[pos : pos + 1] != START_BLOCK:
+            # Either the buffer is used up, or the next byte is not a start
+            # block (junk). Both are "no more frames to extract".
+            return payloads, buffer[pos:]
+        end = buffer.find(END_BLOCK, pos + 1)
+        if end == -1:
+            # Frame started but its end marker has not arrived yet. This
+            # includes a buffer that ends with a lone 0x1C: the 0x0D that
+            # completes the marker is still on the wire.
+            return payloads, buffer[pos:]
+        payloads.append(buffer[pos + 1 : end])
+        pos = end + len(END_BLOCK)
 
 
 @dataclass(frozen=True)
@@ -169,8 +244,11 @@ DEFAULT_LISTENER_PORT = 6671
 #: Same ceiling as the client's response buffer, applied to inbound frames.
 MAX_MESSAGE_BYTES = 1_048_576  # 1 MB
 
-#: How long a connection may sit with no bytes arriving before it's logged
-#: as TIMEOUT and closed.
+#: How long a connection may sit with no bytes arriving before it is closed.
+#: The clock restarts every time bytes arrive (so, in practice, after every
+#: message). Idle with nothing buffered is a normal end of a persistent
+#: session and is closed quietly; idle in the middle of a frame is logged
+#: as TIMEOUT.
 DEFAULT_IDLE_TIMEOUT = 30.0
 
 #: Every classification the Listener can emit (BUILD_PLAN section 5's table).
@@ -253,8 +331,9 @@ class MllpListener:
 
     Runs its accept loop on a background daemon thread (started by
     :meth:`start`, stopped by :meth:`stop`); each connection is handled on
-    its own short-lived daemon thread so one slow or hostile peer can't
-    block the others. Every classified connection is reported through
+    its own daemon thread (which lives as long as the connection does, since
+    connections are persistent) so one slow or hostile peer can't block the
+    others. Every classified connection is reported through
     ``on_event`` (a ``Callable[[ListenerEvent], None]``) -- typically
     ``app.capture.CaptureLog.record``.
 
@@ -446,33 +525,77 @@ class MllpListener:
             self._emit(EVENT_JUNK, peer_host, peer_port, first)
             return
 
-        buffer = first
-        while unframe(buffer) is None:
-            if len(buffer) > self.max_bytes:
+        # From here on this is an MLLP session (see the module docstring's
+        # "Persistent connections" section). `first` is the opening bytes;
+        # they already start with 0x0B.
+        self._serve_mllp_session(conn, peer_host, peer_port, first)
+
+    def _serve_mllp_session(self, conn: socket.socket, peer_host: str, peer_port: int, buffer: bytes) -> None:
+        """Serve one persistent MLLP connection until it ends.
+
+        *buffer* holds the bytes already read (non-empty, starts with
+        ``0x0B``). The loop is: extract every complete frame, answer each
+        one, look at what is left over, then read more bytes. It returns
+        (and the caller closes the socket) when the peer goes away, goes
+        idle, or sends something that makes continuing pointless.
+        """
+        while True:
+            payloads, buffer = extract_frames(buffer)
+
+            for payload in payloads:
+                if not self._handle_frame(conn, peer_host, peer_port, payload):
+                    # A non-HL7 payload was reported; close the connection.
+                    return
+
+            if buffer and buffer[:1] != START_BLOCK:
+                # Bytes where a new frame should have started, and they are
+                # not the 0x0B start byte: the peer stopped speaking MLLP
+                # mid-stream. Report them and close -- guessing where the
+                # next frame begins could mis-frame every later message.
                 self._emit(EVENT_JUNK, peer_host, peer_port, buffer)
                 return
+
+            if len(buffer) > self.max_bytes:
+                # An unfinished frame this large is not a real HL7 message;
+                # stop buffering it (memory safety).
+                self._emit(EVENT_JUNK, peer_host, peer_port, buffer)
+                return
+
             try:
                 chunk = conn.recv(65536)
             except socket.timeout:
-                self._emit(EVENT_TIMEOUT, peer_host, peer_port, buffer)
+                if buffer:
+                    # Idle in the middle of a frame: the peer started a
+                    # message and never finished it.
+                    self._emit(EVENT_TIMEOUT, peer_host, peer_port, buffer)
+                # Empty buffer = idle *between* messages. That is how a
+                # persistent connection normally winds down; not an event.
                 return
             if not chunk:
-                # Closed mid-frame: never completed, nothing to ACK.
-                self._emit(EVENT_JUNK, peer_host, peer_port, buffer)
+                if buffer:
+                    # Closed mid-frame: never completed, nothing to ACK.
+                    self._emit(EVENT_JUNK, peer_host, peer_port, buffer)
+                # Empty buffer = clean close after complete messages; quiet.
                 return
             buffer += chunk
 
-        payload = unframe(buffer)
-        assert payload is not None  # loop only exits once a frame completes
+    def _handle_frame(self, conn: socket.socket, peer_host: str, peer_port: int, payload: bytes) -> bool:
+        """Answer and record one complete frame's payload.
 
+        Returns ``True`` if the connection should stay open for more
+        frames, ``False`` if it should be closed (payload was not HL7).
+        """
         if not payload.startswith(b"MSH"):
             # Framed, but not HL7 -- can't build a meaningful ACK (no MSH
             # to read sender/receiver/control ID from), so just close.
-            self._emit(EVENT_NON_HL7_PAYLOAD, peer_host, peer_port, buffer)
-            return
+            self._emit(EVENT_NON_HL7_PAYLOAD, peer_host, peer_port, frame(payload))
+            return False
 
         text = payload.decode("utf-8", errors="replace")
         message = parse_message(text)
+        # AA = "accepted"; AE = "error". A framed payload that starts MSH but
+        # lacks MSH-9/MSH-10 gets AE, and the connection stays usable: the
+        # sender's *next* message may be fine.
         ack_code = "AA" if _message_is_valid(message) else "AE"
         ack_text = build_ack(message, ack_code)
         try:
@@ -483,11 +606,12 @@ class MllpListener:
             EVENT_HL7,
             peer_host,
             peer_port,
-            buffer,
+            frame(payload),  # the raw bytes of exactly this frame
             full_message=text,
             ack_code=ack_code,
             message=message,
         )
+        return True
 
     def _emit(
         self,
