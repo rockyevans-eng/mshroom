@@ -36,7 +36,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["hl7kit", "app", "mshroom"]
+packages = ["hl7kit", "app", "mshroom", "mshroom.scenario"]
 include-package-data = true
 
 [tool.setuptools.package-data]

@@ -14,6 +14,9 @@ Two run modes, one codebase:
 
 Load-bearing invariants:
 
+* ``run <scenario.toml> ...`` (experimental scenario runner) is dispatched
+  before argparse sees the arguments and never imports pywebview or the web
+  app; see :mod:`mshroom.scenario.cli`.
 * ``--headless`` must never import pywebview -- headless boxes (servers,
   containers) may not have a WebView2/GTK runtime installed at all, so
   the import lives inside :func:`run_desktop` only.
@@ -27,6 +30,7 @@ Load-bearing invariants:
 from __future__ import annotations
 
 import argparse
+import sys
 import threading
 import time
 
@@ -135,6 +139,15 @@ def run_headless(host: str, port: int) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    raw_args = sys.argv[1:] if argv is None else argv
+    if raw_args and raw_args[0] == "run":
+        # Scenario runner (experimental): a separate command line with its own
+        # options. Imported here, not at the top, so the desktop/headless
+        # paths do not load it -- and it never touches pywebview or the app.
+        from mshroom.scenario.cli import main as run_scenario_cli
+
+        return run_scenario_cli(raw_args[1:])
+
     parser = argparse.ArgumentParser(
         prog="mshroom",
         description=(
@@ -143,6 +156,7 @@ def main(argv: list[str] | None = None) -> int:
             f"(default {DEFAULT_HEADLESS_HOST}:{DEFAULT_HEADLESS_PORT}). The MLLP listener "
             "binds 0.0.0.0 on HL7_LISTENER_PORT (default 6671) in both modes."
         ),
+        epilog="Experimental scenario runner: python -m mshroom run --help",
     )
     parser.add_argument(
         "--headless",
@@ -151,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--host", default=None, help="headless only: interface to bind (default 0.0.0.0)")
     parser.add_argument("--port", type=int, default=None, help="headless only: web UI port (default 8550)")
-    args = parser.parse_args(argv)
+    args = parser.parse_args(raw_args)
 
     if not args.headless:
         if args.host is not None or args.port is not None:

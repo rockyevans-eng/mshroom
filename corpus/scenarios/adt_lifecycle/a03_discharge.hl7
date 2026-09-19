@@ -1,0 +1,4 @@
+MSH|^~\&|MSHROOM|TESTFAC|ENGINE|TESTFAC|{{now}}||ADT^A03^ADT_A03|{{token}}|P|2.5.1
+EVN|A03|{{now}}
+PID|1||{{patient.identifier}}^^^MSHROOMTEST^MR||{{patient.family}}^{{patient.given}}||{{patient.dob}}|{{patient.sex}}|||{{patient.street}}^^{{patient.city}}^{{patient.state}}^{{patient.zip}}^GBR
+PV1|1|I|WARD^302^B^TESTFAC||||9999^WATSON^JOHN^^^^MD||||||||||||{{patient.visit}}|||||||||||||||||||||||||{{now}}|{{now}}

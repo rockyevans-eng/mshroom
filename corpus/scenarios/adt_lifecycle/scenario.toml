@@ -1,0 +1,41 @@
+# ADT patient lifecycle -- passthrough. EXPERIMENTAL scenario format (v0);
+# see docs/scenarios.md. All data is fictional: the patient is a public-domain
+# fictional character and every identifier starts with MSHROOM-TEST-.
+
+[scenario]
+name = "adt_lifecycle"
+description = "Register, admit, transfer and discharge one fictional patient; the engine must pass every message through unchanged."
+synthetic = true
+correlate_on = "MSH-10"
+
+[patient]
+identifier = "MSHROOM-TEST-0001"
+family = "HOLMES"
+given = "SHERLOCK"
+dob = "18540106"
+sex = "M"
+street = "221B BAKER ST"
+city = "LONDON"
+state = "LND"
+zip = "NW1 6XE"
+visit = "MSHROOM-TEST-V0001"
+
+[[step]]
+name = "register"
+label = "registered"
+template = "a04_register.hl7"
+
+[[step]]
+name = "admit"
+label = "admitted"
+template = "a01_admit.hl7"
+
+[[step]]
+name = "transfer"
+label = "transferred"
+template = "a02_transfer.hl7"
+
+[[step]]
+name = "discharge"
+label = "discharged"
+template = "a03_discharge.hl7"

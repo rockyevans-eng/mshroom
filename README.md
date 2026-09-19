@@ -47,6 +47,14 @@ FastAPI + vanilla-JS app):
   ACKed and logged separately. Click any logged HL7 row to open it straight
   in the View tab.
 
+## Scenario runner (experimental)
+
+`python -m mshroom run <scenario.toml> --target HOST:PORT --listen PORT`
+sends scripted messages to an interface engine, listens on a return port
+for what the engine forwards, and checks it (first scenarios: the message
+must come back unchanged). Fictional data only. See
+[docs/scenarios.md](docs/scenarios.md).
+
 ## Quickstart
 
 Requires Python 3.12+.
