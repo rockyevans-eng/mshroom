@@ -478,10 +478,16 @@ def api_listener_events(limit: int = 200) -> dict[str, Any]:
 def api_listener_event_detail(event_id: int) -> dict[str, Any]:
     """One capture-log row in full, including its parse tree when the
     event was classified as HL7 -- what the Listener page's "open in
-    Viewer" link fetches before handing the text to the Viewer."""
+    Viewer" link fetches before handing the text to the Viewer. Also carries
+    ``raw_hex``, the exact payload bytes as a hex string."""
     event = capture_log.get_event(event_id)
     if event is None:
         raise HTTPException(status_code=404, detail=f"No capture event with id {event_id}.")
+    # The BLOB can't go through JSON, so it is swapped for a hex string.
+    # raw_hex is the exact wire payload (full_message is decoded lossily for
+    # display); it is None for events that carried no payload.
+    raw = event.pop("raw_message", None)
+    event["raw_hex"] = raw.hex() if raw is not None else None
     result: dict[str, Any] = {"event": event}
     if event.get("full_message"):
         message = parse_message(event["full_message"])

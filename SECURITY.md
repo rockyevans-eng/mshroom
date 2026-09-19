@@ -22,3 +22,14 @@ UI (`uvicorn ... --host`) and the Listener's bind address are
 configurable; if you run MSHroom anywhere reachable beyond your own
 machine, treat the bind host/port and the network you expose them to as
 your own responsibility.
+
+## Sensitive data
+
+`capture.db` (the Listener's capture log), its `capture.db.bak-*` backups,
+and any run or log files MSHroom writes can contain the exact messages you
+tested with. Treat them as sensitive: never attach them to an issue, pull
+request, or security report, and never commit them (they are gitignored).
+
+When you need a reproduction, use synthetic data only, with identifiers
+prefixed `MSHROOM-TEST-` (for example a patient ID of `MSHROOM-TEST-0001`)
+so it is obvious to everyone that nothing real is involved.

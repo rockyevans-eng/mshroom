@@ -6,3 +6,9 @@ capture.db
 *.egg-info/
 build/
 dist/
+
+# Runtime output that can contain the messages you tested with -- never commit.
+runs/
+*.log
+*.db-journal
+capture.db.bak-*

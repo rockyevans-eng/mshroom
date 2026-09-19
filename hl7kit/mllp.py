@@ -585,6 +585,13 @@ class ListenerEvent:
     ``full_message``/``ack_code``/``msh9``/``msh10`` are only meaningful
     when ``event_class == EVENT_HL7``; they're ``None`` for every other
     class.
+
+    ``raw_frame`` is the exact payload bytes that arrived between the MLLP
+    start/end markers (markers excluded), uncapped and undecoded. It is set
+    for ``EVENT_HL7`` and ``EVENT_NON_HL7_PAYLOAD`` only. ``full_message``
+    is that same payload decoded with ``errors="replace"`` for display, so
+    invalid UTF-8 becomes U+FFFD there and *only* ``raw_frame`` is
+    guaranteed to equal what was on the wire.
     """
 
     event_class: str
@@ -596,6 +603,7 @@ class ListenerEvent:
     ack_code: Optional[str] = None
     msh9: Optional[str] = None
     msh10: Optional[str] = None
+    raw_frame: Optional[bytes] = None
 
 
 class MllpListener:
@@ -860,7 +868,7 @@ class MllpListener:
         if not payload.startswith(b"MSH"):
             # Framed, but not HL7 -- can't build a meaningful ACK (no MSH
             # to read sender/receiver/control ID from), so just close.
-            self._emit(EVENT_NON_HL7_PAYLOAD, peer_host, peer_port, frame(payload))
+            self._emit(EVENT_NON_HL7_PAYLOAD, peer_host, peer_port, frame(payload), raw_frame=payload)
             return False
 
         text = payload.decode("utf-8", errors="replace")
@@ -882,6 +890,7 @@ class MllpListener:
             full_message=text,
             ack_code=ack_code,
             message=message,
+            raw_frame=payload,  # exact wire bytes; full_message is lossy for invalid UTF-8
         )
         return True
 
@@ -895,6 +904,7 @@ class MllpListener:
         full_message: Optional[str] = None,
         ack_code: Optional[str] = None,
         message: Optional[Message] = None,
+        raw_frame: Optional[bytes] = None,
     ) -> None:
         msh9 = msh10 = None
         if message is not None:
@@ -909,6 +919,7 @@ class MllpListener:
             ack_code=ack_code,
             msh9=msh9,
             msh10=msh10,
+            raw_frame=raw_frame,
         )
         if self.on_event is not None:
             try:
