@@ -308,3 +308,12 @@ ul.hl7-tree ul.children { padding-left: 1.25rem; }
 .class-NON_HL7_PAYLOAD, .class-JUNK { color: var(--err); }
 .class-HTTP_PROBE, .class-TLS_PROBE { color: #a15c00; }
 .class-SCAN_PROBE, .class-TIMEOUT { color: var(--muted); }
+
+/* ---------------- HL7 cheat sheet (collapsible, under the header) ---------------- */
+#cheat-sheet { background: var(--panel); border-bottom: 1px solid var(--border); padding: 0.3rem 1rem; }
+#cheat-sheet summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+#cheat-sheet-body { padding: 0.5rem 0 0.4rem; font-size: 13px; }
+#cheat-sheet-body p { margin: 0.35rem 0; }
+#cheat-sheet-body table { border-collapse: collapse; margin: 0.4rem 0; }
+#cheat-sheet-body th, #cheat-sheet-body td { border: 1px solid var(--border); padding: 0.2rem 0.6rem; text-align: left; }
+.mono { font-family: var(--mono); }

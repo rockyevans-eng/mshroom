@@ -17,6 +17,32 @@
     <a href="#receive" id="tab-link-receive">Receive</a>
   </nav>
 </header>
+
+<!-- HL7 v2 cheat sheet: static reference, collapsed by default, visible on every tab. -->
+<details id="cheat-sheet">
+  <summary>HL7 cheat sheet</summary>
+  <div id="cheat-sheet-body">
+    <p><strong>Structure:</strong> Message &rarr; Segment &rarr; Field &rarr; Component &rarr; Subcomponent
+      (a field can also repeat)</p>
+    <p class="mono">Segment <b>|</b> Field <b>^</b> Component <b>&amp;</b> Subcomponent &nbsp;&nbsp; Repetition <b>~</b></p>
+    <table>
+      <thead><tr><th>Char</th><th>Separates</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">|</td><td>Fields</td><td class="mono">PID|1||12345^^^HOSP^MR||DOE^JANE</td></tr>
+        <tr><td class="mono">~</td><td>Repetitions of a field</td><td class="mono">555-1234~555-9876</td></tr>
+        <tr><td class="mono">^</td><td>Components</td><td class="mono">DOE^JANE^Q (family^given^middle)</td></tr>
+        <tr><td class="mono">&amp;</td><td>Subcomponents</td><td class="mono">A&amp;B within one component</td></tr>
+        <tr><td class="mono">\</td><td>Escape character</td><td class="mono">\F\ = a literal |</td></tr>
+        <tr><td class="mono">CR</td><td>Segments (0x0D)</td><td>one segment per line</td></tr>
+      </tbody>
+    </table>
+    <p class="hint">The separators are declared in the message itself: MSH-1 is <span class="mono">|</span>
+      and MSH-2 is <span class="mono">^~\&amp;</span>.</p>
+    <p><strong>Reference notation (as MSHroom shows it):</strong>
+      <span class="mono">PID-5.1.2</span> = segment PID, field 5, component 1, subcomponent 2.
+      Field repetition: <span class="mono">PID-3[2]</span>. Repeated segment: <span class="mono">OBX[2]-5</span>.</p>
+  </div>
+</details>
 <main>
 
 <!-- ================= View tab ================= -->
